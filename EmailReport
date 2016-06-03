@@ -1,0 +1,127 @@
+# Variables to configure
+$MailServer = "%server%"
+$ReportSender = "postmaster@%domain%"
+$ReportRecipient = "%user%@%domain%"
+$MailSubject = ("Mailbox Report for " + $MailServer + " - " + ( get-date ).ToString('yyyy/MM/dd'))
+
+#SendEmailFunction
+Function sendEmail
+{ param($smtphost,$htmlFileName)
+$smtp= New-Object System.Net.Mail.SmtpClient $smtphost
+$msg = New-Object System.Net.Mail.MailMessage $ReportSender, $ReportRecipient, $MailSubject, (Get-Content $htmlFileName)
+$msg.isBodyhtml = $true
+$smtp.send($msg)
+}
+
+$exdata = Get-MailboxStatistics -Server $MailServer | Sort-Object TotalItemSize -descending | Select-Object DisplayName, ItemCount, TotalItemSize, Database, StorageLimitStatus
+
+$fileName = "ExchangeReport.html"
+New-Item -ItemType file $fileName -Force
+
+# HTML start
+Add-Content $fileName "<html>"
+
+# HEAD start
+Add-Content $fileName "<head>"
+
+add-content $fileName '<STYLE TYPE="text/css">'
+add-content $fileName  "<!--"
+add-content $fileName  "td {"
+add-content $fileName  "font-family: Tahoma;"
+add-content $fileName  "font-size: 11px;"
+add-content $fileName  "border-top: 1px solid #999999;"
+add-content $fileName  "border-right: 1px solid #999999;"
+add-content $fileName  "border-bottom: 1px solid #999999;"
+add-content $fileName  "border-left: 1px solid #999999;"
+add-content $fileName  "padding-top: 0px;"
+add-content $fileName  "padding-right: 0px;"
+add-content $fileName  "padding-bottom: 0px;"
+add-content $fileName  "padding-left: 0px;"
+add-content $fileName  "}"
+add-content $fileName  "body {"
+add-content $fileName  "margin-left: 5px;"
+add-content $fileName  "margin-top: 5px;"
+add-content $fileName  "margin-right: 0px;"
+add-content $fileName  "margin-bottom: 10px;"
+add-content $fileName  ""
+add-content $fileName  "table {"
+add-content $fileName  "border: thin solid #000000;"
+add-content $fileName  "}"
+add-content $fileName  "-->"
+add-content $fileName  "</style>"
+
+# HEAD end
+Add-Content $fileName "</head>"
+
+# HEAD start
+Add-Content $fileName "<body>"
+
+# TABLE start
+Add-Content $fileName "<table width='100%'>"
+
+# TABLE Header
+Add-Content $fileName "<tr bgcolor='#7C7C7C'>"
+Add-Content $fileName "<td width='35%'>DisplayName</td>"
+Add-Content $fileName "<td width='10%'>ItemCount</td>"
+Add-Content $fileName "<td width='10%'>TotalItemSize</td>"
+Add-Content $fileName "<td width='25%'>Database</td>"
+Add-Content $fileName "<td width='20%'>StorageLimitStatus</td>"
+Add-Content $fileName "</tr>"
+
+$alternateTableRowBackground = 0
+
+# TABLE Content
+while($alternateTableRowBackground -le $exdata.length)
+{
+if(($alternateTableRowBackground % 2) -eq 0)
+{
+Add-Content $fileName "<tr bgcolor='#CCCCCC'>"
+}
+else
+{
+Add-Content $fileName "<tr bgcolor='#FCFCFC'>"
+}
+Add-Content $fileName ("<td width='30%'>" + $exdata[$alternateTableRowBackground].DisplayName + "</td>") 
+Add-Content $fileName ("<td width='10%'>" + $exdata[$alternateTableRowBackground].ItemCount + "</td>")
+Add-Content $fileName ("<td width='15%'>" + $exdata[$alternateTableRowBackground].TotalItemSize + "</td>")
+Add-Content $fileName ("<td width='25%'>" + $exdata[$alternateTableRowBackground].Database + "</td>")
+#BelowLimit or NoChecking
+if(($exdata[$alternateTableRowBackground].StorageLimitStatus -eq "BelowLimit") -or ($exdata[$alternateTableRowBackground].StorageLimitStatus -eq "NoChecking"))
+{
+Add-Content $fileName ("<td bgcolor='#007F00' width='20%'>" + $exdata[$alternateTableRowBackground].StorageLimitStatus + "</td>")
+}
+#IssueWarning
+if($exdata[$alternateTableRowBackground].StorageLimitStatus -eq "IssueWarning")
+{
+Add-Content $fileName ("<td bgcolor='#7F7F00' width='20%'>" + $exdata[$alternateTableRowBackground].StorageLimitStatus + "</td>")
+}
+#ProhibitSend or MailboxDisabled
+if(($exdata[$alternateTableRowBackground].StorageLimitStatus -eq "ProhibitSend") -or ($exdata[$alternateTableRowBackground].StorageLimitStatus -eq "MailboxDisabled"))
+{
+Add-Content $fileName ("<td bgcolor='#7F0000' width='20%'>" + $exdata[$alternateTableRowBackground].StorageLimitStatus + "</td>")
+}
+Add-Content $fileName "</tr>"
+
+$alternateTableRowBackground = $alternateTableRowBackground + 1
+}
+# Summe Mailboxsize
+Add-Content $fileName "<tr bgcolor='#7C7C7C'>"
+Add-Content $fileName ("<td width='30%'></td>") 
+$tempdata = MailboxStatistics -Server $MailServer | %{$_.ItemCount} | Measure-Object -Sum
+Add-Content $fileName ("<td width='10%'>" + ($tempdata | Select-Object -expand Sum) + "</td>")
+$tempdata = MailboxStatistics -Server $MailServer | %{$_.TotalItemSize.Value.ToMB()} | Measure-Object -Sum
+Add-Content $fileName ("<td width='15%'>" + ($tempdata | Select-Object -expand Sum) + " MB</td>")
+Add-Content $fileName ("<td width='25%'></td>")
+Add-Content $fileName ("<td width='20%'></td>")
+
+
+#TABLE end
+Add-Content $fileName "</table>"
+
+# HEAD end
+Add-Content $fileName "</body>"
+
+# HTML end
+Add-Content $fileName "</html>"
+
+sendEmail $MailServer $fileName
