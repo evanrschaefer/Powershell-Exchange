@@ -1,0 +1,17 @@
+#######################################################################################################
+#####     This script will search for disabled accounts and dump their email into a .pst file     ##### 
+#######################################################################################################
+
+$Batch = Read-Host -Prompt 'Input Batch ID'
+$mailboxes=Get-User -RecipientTypeDetails UserMailbox |
+	where {$_.UseraccountControl -like "*accountdisabled*"} |
+		select name,WindowsEmailAddress  
+
+Foreach($mailbox in $mailboxes){
+$mailbox.name = $mailbox.name`
+$emailaddress = $mailbox.WindowsEmailAddress.ToString()
+
+New-MailboxExportRequest -BatchName $batch -Mailbox "$mailbox.name" ` -Name “ExportD-$mailboxname” `
+
+-FilePath “\\%server%\%directory%\$emailaddress.pst”
+}
