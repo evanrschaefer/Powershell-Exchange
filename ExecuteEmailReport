@@ -1,0 +1,1 @@
+PowerShell.exe -command ".'e:\program files\microsoft\exchange server\v14\bin\RemoteExchange.ps1'; Connect-ExchangeServer -auto; c:\batch\exchange2010MailboxReportV1.ps1
